@@ -30,7 +30,7 @@ export function CheckoutSection({
         </h2>
       </div>
 
-      {active && children}
+      {active && <div className="section-body-wrap step-enter">{children}</div>}
 
       {!active && completed && summary && (
         <div className="section-summary-card">

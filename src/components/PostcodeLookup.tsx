@@ -4,6 +4,7 @@ import {
   lookupPostcode,
   type PostcodeResult,
 } from '../api/postcodes'
+import { LottiePlayer, lottieUrl } from './LottiePlayer'
 import './PostcodeLookup.css'
 
 type Props = {
@@ -77,8 +78,11 @@ export function PostcodeLookup({
     setError('')
     setLoading(true)
     setOpen(false)
+    const started = Date.now()
     try {
       const result = await lookupPostcode(postcode)
+      const wait = Math.max(0, 650 - (Date.now() - started))
+      if (wait) await new Promise((r) => setTimeout(r, wait))
       if (!result) {
         setError('Please enter a valid UK postcode')
         return
@@ -184,6 +188,12 @@ export function PostcodeLookup({
         )}
       </div>
       {error && <p className="field-error">{error}</p>}
+      {loading && showButton && (
+        <div className="search-lottie-panel compact" aria-busy="true">
+          <LottiePlayer src={lottieUrl('search')} className="search-lottie" />
+          <p>Finding stores near you…</p>
+        </div>
+      )}
     </div>
   )
 }

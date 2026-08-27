@@ -5,6 +5,7 @@ import {
   type PostcodeResult,
 } from '../api/postcodes'
 import { type Address, buildAddressChoices } from '../data/addresses'
+import { LottiePlayer, lottieUrl } from './LottiePlayer'
 import './PostcodeLookup.css'
 import './AddressLookup.css'
 
@@ -43,12 +44,16 @@ export function AddressLookup({
   async function findAddress() {
     setError('')
     setLoading(true)
+    setShowPicker(false)
+    const started = Date.now()
     try {
       const result = await lookupPostcode(postcodeInput)
+      const wait = Math.max(0, 700 - (Date.now() - started))
+      if (wait) await new Promise((r) => setTimeout(r, wait))
+
       if (!result) {
         setError('Please enter a valid UK postcode')
         setMatches([])
-        setShowPicker(false)
         return
       }
 
@@ -63,7 +68,6 @@ export function AddressLookup({
       setMatches(choices)
       setShowPicker(true)
       setManual(false)
-      // Clear previous property selection until user picks one
       onChange({
         line1: '',
         line2: '',
@@ -109,6 +113,7 @@ export function AddressLookup({
               autoComplete="postal-code"
               placeholder="e.g. HD1 3SJ"
               value={postcodeInput}
+              disabled={loading}
               onChange={(e) => {
                 setPostcodeInput(e.target.value.toUpperCase())
                 setError('')
@@ -133,8 +138,15 @@ export function AddressLookup({
         {error && <p className="field-error">{error}</p>}
       </div>
 
-      {showPicker && matches.length > 0 && (
-        <div className="address-picker" id={listId}>
+      {loading && (
+        <div className="search-lottie-panel" aria-busy="true">
+          <LottiePlayer src={lottieUrl('search')} className="search-lottie" />
+          <p>Searching for addresses…</p>
+        </div>
+      )}
+
+      {!loading && showPicker && matches.length > 0 && (
+        <div className="address-picker step-enter" id={listId}>
           <p className="address-picker-title">
             {matches.length} addresses found — select yours
           </p>
@@ -163,8 +175,8 @@ export function AddressLookup({
         </div>
       )}
 
-      {manual && (
-        <>
+      {manual && !loading && (
+        <div className="step-enter address-manual-fields">
           <div className="field">
             <label htmlFor={`${idPrefix}-line1`}>Address line 1</label>
             <input
@@ -220,7 +232,7 @@ export function AddressLookup({
               Choose a different address
             </button>
           )}
-        </>
+        </div>
       )}
     </div>
   )

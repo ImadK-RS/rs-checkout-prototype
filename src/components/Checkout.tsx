@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, type Dispatch, type FormEvent, type SetSt
 import { AddressLookup } from './AddressLookup'
 import { CheckoutSection } from './CheckoutSection'
 import { Header } from './Header'
+import { OrderConfirmation } from './OrderConfirmation'
 import { OrderSummary } from './OrderSummary'
 import { PaymentBrand } from './PaymentBrands'
 import { PostcodeLookup } from './PostcodeLookup'
@@ -16,6 +17,14 @@ import {
   findStoresNear,
   type StoreWithDistance,
 } from '../data/stores'
+import {
+  createOrderNumber,
+  estimatedDeliveryLabel,
+  formatCardNumber,
+  formatExpiry,
+  validateCard,
+  type CardErrors,
+} from '../utils/cardValidation'
 import './Checkout.css'
 
 type Section = 'details' | 'delivery' | 'billing' | 'payment'
@@ -89,7 +98,13 @@ export function Checkout() {
     expiry: '',
     cvv: '',
   })
+  const [cardErrors, setCardErrors] = useState<CardErrors>({})
+  const [paymentError, setPaymentError] = useState('')
+  const [paying, setPaying] = useState(false)
   const [placed, setPlaced] = useState(false)
+  const [orderNumber, setOrderNumber] = useState('')
+  const [promoCode, setPromoCode] = useState('')
+  const [promoDiscount, setPromoDiscount] = useState(0)
 
   const selectedStore = useMemo(
     () => stores.find((s) => s.id === selectedStoreId) ?? null,
@@ -105,7 +120,7 @@ export function Checkout() {
   const deliveryCost =
     fulfillment === 'delivery' ? (shipping?.price ?? 0) : 0
   const subtotal = 199.99
-  const total = subtotal + deliveryCost
+  const total = Math.max(0, subtotal + deliveryCost - promoDiscount)
 
   const visibleStores = showAllStores ? stores : stores.slice(0, 3)
 
@@ -114,8 +129,33 @@ export function Checkout() {
   }
 
   function openSection(section: Section) {
+    if (placed) return
     setActive(section)
-    setPlaced(false)
+  }
+
+  function applyPromo(code: string): { ok: boolean; message: string } {
+    const normalized = code.trim().toUpperCase()
+    if (!normalized) {
+      setPromoCode('')
+      setPromoDiscount(0)
+      return { ok: false, message: 'Enter a promo code' }
+    }
+    if (normalized === 'RICHER10' || normalized === 'SAVE10') {
+      setPromoCode(normalized)
+      setPromoDiscount(20)
+      return { ok: true, message: 'Promo applied — £20 off' }
+    }
+    if (normalized === 'FREESHIP') {
+      setPromoCode(normalized)
+      setPromoDiscount(deliveryCost)
+      return {
+        ok: true,
+        message: deliveryCost > 0 ? 'Free delivery applied' : 'Promo applied',
+      }
+    }
+    setPromoCode('')
+    setPromoDiscount(0)
+    return { ok: false, message: 'That promo code is not valid' }
   }
 
   function isValidEmail(value: string) {
@@ -190,12 +230,24 @@ export function Checkout() {
     openSection('payment')
   }
 
-  function placeOrder(e: FormEvent) {
+  async function placeOrder(e: FormEvent) {
     e.preventDefault()
+    setPaymentError('')
+    setCardErrors({})
+
     if (paymentMethod === 'card') {
-      if (!card.name || !card.number || !card.expiry || !card.cvv) return
+      const errors = validateCard(card)
+      if (Object.keys(errors).length > 0) {
+        setCardErrors(errors)
+        return
+      }
     }
+
+    setPaying(true)
+    await new Promise((r) => setTimeout(r, 900))
+    setPaying(false)
     markComplete('payment')
+    setOrderNumber(createOrderNumber())
     setPlaced(true)
   }
 
@@ -236,6 +288,50 @@ export function Checkout() {
         </div>
       </>
     ) : null
+
+  const confirmationEmail =
+    person.email && person.email !== 'guest@checkout.local'
+      ? person.email
+      : 'guest checkout'
+
+  if (placed) {
+    return (
+      <div className="checkout-page">
+        <Header />
+        <OrderConfirmation
+          details={{
+            orderNumber,
+            email: confirmationEmail,
+            estimatedDate: estimatedDeliveryLabel(
+              fulfillment,
+              shipping?.eta,
+            ),
+            productName: '1x Polk Audio Signa S2 (Black)',
+            productPrice: subtotal,
+            deliveryCost,
+            total,
+            promoCode: promoCode || undefined,
+            promoDiscount: promoDiscount || undefined,
+            fulfillmentLabel:
+              fulfillment === 'collect'
+                ? selectedStore
+                  ? `Click & Collect — ${selectedStore.name}`
+                  : 'Click & Collect'
+                : shipping?.name ?? 'Delivery',
+          }}
+          onContinueShopping={() => {
+            setPlaced(false)
+            setOrderNumber('')
+            setActive('details')
+            setCompleted({})
+            setPaying(false)
+            setCardErrors({})
+            setPaymentError('')
+          }}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="checkout-page">
@@ -466,154 +562,189 @@ export function Checkout() {
             title="Payment Method"
             active={active === 'payment'}
             completed={!!completed.payment}
-            summary={
-              placed ? (
-                <p>Order placed via {paymentMethodLabel(paymentMethod)}</p>
-              ) : null
-            }
           >
             <form className="section-body payment-body" onSubmit={placeOrder}>
-              {placed ? (
-                <div className="success-banner">
-                  <h3>Thanks — your order is confirmed</h3>
-                  <p>
-                    Confirmation sent to{' '}
-                    <strong>
-                      {isGuest && person.email === 'guest@checkout.local'
-                        ? 'your guest session'
-                        : person.email}
-                    </strong>
-                    . Demo only — nothing was charged.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <div className="payment-list">
-                    {PAYMENT_METHODS.map((method) => {
-                      const selected = paymentMethod === method.id
-                      return (
-                        <div
-                          key={method.id}
-                          className={`payment-option ${selected ? 'is-selected' : ''}`}
-                        >
-                          <label className="payment-option-header">
-                            <input
-                              type="radio"
-                              name="payment"
-                              checked={selected}
-                              onChange={() => setPaymentMethod(method.id)}
-                            />
-                            <span className="payment-label-block">
-                              <span className="payment-label">
-                                {method.label}
-                              </span>
-                              {method.subtitle && (
-                                <span className="payment-subtitle">
-                                  {method.subtitle}
-                                </span>
-                              )}
+              <div className="payment-list">
+                {PAYMENT_METHODS.map((method) => {
+                  const selected = paymentMethod === method.id
+                  return (
+                    <div
+                      key={method.id}
+                      className={`payment-option ${selected ? 'is-selected' : ''}`}
+                    >
+                      <label className="payment-option-header">
+                        <input
+                          type="radio"
+                          name="payment"
+                          checked={selected}
+                          onChange={() => {
+                            setPaymentMethod(method.id)
+                            setCardErrors({})
+                            setPaymentError('')
+                          }}
+                        />
+                        <span className="payment-label-block">
+                          <span className="payment-label">{method.label}</span>
+                          {method.subtitle && (
+                            <span className="payment-subtitle">
+                              {method.subtitle}
                             </span>
-                            <PaymentBrand method={method.id} />
-                          </label>
-
-                          {selected && method.id === 'card' && (
-                            <div className="card-fields">
-                              <div className="field">
-                                <label htmlFor="card-name">Name on card</label>
-                                <input
-                                  id="card-name"
-                                  value={card.name}
-                                  onChange={(e) =>
-                                    setCard((c) => ({
-                                      ...c,
-                                      name: e.target.value,
-                                    }))
-                                  }
-                                  required
-                                />
-                              </div>
-                              <div className="field">
-                                <label htmlFor="card-number">Card Number</label>
-                                <input
-                                  id="card-number"
-                                  inputMode="numeric"
-                                  value={card.number}
-                                  onChange={(e) =>
-                                    setCard((c) => ({
-                                      ...c,
-                                      number: e.target.value,
-                                    }))
-                                  }
-                                  required
-                                />
-                              </div>
-                              <div className="row-2">
-                                <div className="field">
-                                  <label htmlFor="card-expiry">
-                                    Expiration
-                                  </label>
-                                  <input
-                                    id="card-expiry"
-                                    placeholder="MM/YY"
-                                    value={card.expiry}
-                                    onChange={(e) =>
-                                      setCard((c) => ({
-                                        ...c,
-                                        expiry: e.target.value,
-                                      }))
-                                    }
-                                    required
-                                  />
-                                </div>
-                                <div className="field">
-                                  <label htmlFor="card-cvv">CVV</label>
-                                  <input
-                                    id="card-cvv"
-                                    inputMode="numeric"
-                                    value={card.cvv}
-                                    onChange={(e) =>
-                                      setCard((c) => ({
-                                        ...c,
-                                        cvv: e.target.value,
-                                      }))
-                                    }
-                                    required
-                                  />
-                                </div>
-                              </div>
-                            </div>
                           )}
+                        </span>
+                        <PaymentBrand method={method.id} />
+                      </label>
+
+                      {selected && method.id === 'card' && (
+                        <div className="card-fields">
+                          <div
+                            className={`field ${cardErrors.name ? 'has-error' : ''}`}
+                          >
+                            <label htmlFor="card-name">Name on card</label>
+                            <input
+                              id="card-name"
+                              autoComplete="cc-name"
+                              value={card.name}
+                              aria-invalid={!!cardErrors.name}
+                              onChange={(e) => {
+                                setCard((c) => ({
+                                  ...c,
+                                  name: e.target.value,
+                                }))
+                                setCardErrors((err) => ({
+                                  ...err,
+                                  name: undefined,
+                                }))
+                              }}
+                            />
+                            {cardErrors.name && (
+                              <p className="field-error">{cardErrors.name}</p>
+                            )}
+                          </div>
+                          <div
+                            className={`field ${cardErrors.number ? 'has-error' : ''}`}
+                          >
+                            <label htmlFor="card-number">Card Number</label>
+                            <input
+                              id="card-number"
+                              inputMode="numeric"
+                              autoComplete="cc-number"
+                              placeholder="ACCT-000006"
+                              value={card.number}
+                              aria-invalid={!!cardErrors.number}
+                              onChange={(e) => {
+                                setCard((c) => ({
+                                  ...c,
+                                  number: formatCardNumber(e.target.value),
+                                }))
+                                setCardErrors((err) => ({
+                                  ...err,
+                                  number: undefined,
+                                }))
+                              }}
+                            />
+                            {cardErrors.number && (
+                              <p className="field-error">{cardErrors.number}</p>
+                            )}
+                          </div>
+                          <div className="row-2">
+                            <div
+                              className={`field ${cardErrors.expiry ? 'has-error' : ''}`}
+                            >
+                              <label htmlFor="card-expiry">Expiration</label>
+                              <input
+                                id="card-expiry"
+                                inputMode="numeric"
+                                autoComplete="cc-exp"
+                                placeholder="MM/YY"
+                                value={card.expiry}
+                                aria-invalid={!!cardErrors.expiry}
+                                onChange={(e) => {
+                                  setCard((c) => ({
+                                    ...c,
+                                    expiry: formatExpiry(e.target.value),
+                                  }))
+                                  setCardErrors((err) => ({
+                                    ...err,
+                                    expiry: undefined,
+                                  }))
+                                }}
+                              />
+                              {cardErrors.expiry && (
+                                <p className="field-error">{cardErrors.expiry}</p>
+                              )}
+                            </div>
+                            <div
+                              className={`field ${cardErrors.cvv ? 'has-error' : ''}`}
+                            >
+                              <label htmlFor="card-cvv">CVV</label>
+                              <input
+                                id="card-cvv"
+                                inputMode="numeric"
+                                autoComplete="cc-csc"
+                                placeholder="123"
+                                maxLength={4}
+                                value={card.cvv}
+                                aria-invalid={!!cardErrors.cvv}
+                                onChange={(e) => {
+                                  setCard((c) => ({
+                                    ...c,
+                                    cvv: e.target.value.replace(/\D/g, '').slice(0, 4),
+                                  }))
+                                  setCardErrors((err) => ({
+                                    ...err,
+                                    cvv: undefined,
+                                  }))
+                                }}
+                              />
+                              {cardErrors.cvv && (
+                                <p className="field-error">{cardErrors.cvv}</p>
+                              )}
+                            </div>
+                          </div>
+                          <p className="card-hint">
+                            Demo tip: use{' '}
+                            <code>4111 1111 1111 1111</code>, any future expiry,
+                            any 3-digit CVV.
+                          </p>
                         </div>
-                      )
-                    })}
-                  </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
 
-                  <p className="terms">
-                    By proceeding with your purchase, you agree to our{' '}
-                    <a href="#terms">Terms and Conditions</a>.
-                  </p>
+              <p className="terms">
+                By proceeding with your purchase, you agree to our{' '}
+                <a href="#terms">Terms and Conditions</a>.
+              </p>
 
-                  <div className="pay-total">
-                    Total to pay: <strong>{formatMoney(total)}</strong>
-                  </div>
+              <div className="pay-total">
+                Total to pay: <strong>{formatMoney(total)}</strong>
+              </div>
 
-                  <button type="submit" className="btn-primary btn-full">
-                    Place Order
-                  </button>
-                </>
-              )}
+              {paymentError && <p className="field-error">{paymentError}</p>}
+
+              <button
+                type="submit"
+                className="btn-primary btn-full"
+                disabled={paying}
+              >
+                {paying ? 'Processing payment…' : 'Place Order'}
+              </button>
             </form>
           </CheckoutSection>
         </div>
 
-        <OrderSummary deliveryCost={deliveryCost} total={total} />
+        <OrderSummary
+          deliveryCost={deliveryCost}
+          total={total}
+          promoCode={promoCode}
+          promoDiscount={promoDiscount}
+          onApplyPromo={applyPromo}
+        />
       </div>
     </div>
   )
-}
-
-function paymentMethodLabel(id: PaymentMethodId) {
-  return PAYMENT_METHODS.find((m) => m.id === id)?.label ?? id
 }
 
 function DeliveryForm({
