@@ -1,0 +1,81 @@
+.postcode-lookup {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.postcode-lookup > label {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 28px;
+}
+
+.postcode-lookup-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.postcode-lookup-input-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.postcode-lookup-input-wrap input {
+  width: 100%;
+  height: 38px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-size: 12px;
+  font-family: inherit;
+  background: #fff;
+  box-sizing: border-box;
+  text-transform: uppercase;
+}
+
+.postcode-lookup-input-wrap input:focus {
+  outline: 2px solid rgba(49, 129, 232, 0.35);
+  border-color: var(--blue);
+}
+
+.postcode-suggestions {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  max-height: 220px;
+  overflow: auto;
+}
+
+.postcode-suggestions button {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.postcode-suggestions button.is-active,
+.postcode-suggestions button:hover {
+  background: #f5fafe;
+}
+
+.postcode-lookup:not(.with-button) .postcode-lookup-row {
+  display: block;
+}

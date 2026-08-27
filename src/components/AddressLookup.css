@@ -1,0 +1,140 @@
+.address-lookup {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.address-picker {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: #fff;
+  padding: 10px;
+}
+
+.address-picker-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.address-picker ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.address-picker li + li {
+  border-top: 1px solid var(--border);
+}
+
+.address-picker button[type='button']:not(.link-btn) {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 8px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.address-picker .suggestion-line {
+  font-size: 13px;
+  font-weight: 700;
+  color: #000;
+}
+
+.address-picker .suggestion-meta {
+  font-size: 11px;
+  color: #666;
+}
+
+.address-picker button[type='button']:not(.link-btn):hover {
+  background: #f5fafe;
+}
+
+.enter-manual {
+  margin-top: 10px;
+  color: var(--blue);
+}
+
+/* Shipping skeleton */
+.shipping-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: var(--bg-soft);
+  border-radius: 5px;
+}
+
+.skeleton-row {
+  display: grid;
+  grid-template-columns: 18px 1fr 52px;
+  gap: 10px;
+  align-items: center;
+  padding: 14px 10px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+
+.skeleton-bone {
+  display: block;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    #ececec 0%,
+    #f6f6f6 50%,
+    #ececec 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.1s ease-in-out infinite;
+}
+
+.skeleton-radio {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}
+
+.skeleton-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.skeleton-line {
+  height: 10px;
+}
+
+.skeleton-line.w60 {
+  width: 60%;
+}
+
+.skeleton-line.w40 {
+  width: 40%;
+}
+
+.skeleton-line.w80 {
+  width: 80%;
+}
+
+.skeleton-price {
+  width: 44px;
+  height: 12px;
+  justify-self: end;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
